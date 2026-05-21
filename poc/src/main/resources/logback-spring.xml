@@ -1,0 +1,114 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<!--
+    The Sentinel AI Gateway — Logback Yapılandırması
+    Spring Boot 4.x logback-spring.xml
+
+    Spring Boot 4.x'te yeni eklenen dosyalar:
+      - structured-console-appender.xml  → JSON structured console output
+      - structured-file-appender.xml     → JSON structured file output
+      - ROLLING_FILE_NAME_PATTERN sistem özelliği desteği
+
+    Spring Boot Extensions (springProfile, springProperty) bu dosyada kullanılabilir.
+    logback.xml yerine logback-spring.xml kullanmak zorunludur.
+-->
+<configuration>
+
+    <!-- ===================================================
+         Spring Boot Temel Tanımlamaları
+         Conversion rules, pattern properties ve logger configs
+         =================================================== -->
+    <include resource="org/springframework/boot/logging/logback/defaults.xml"/>
+
+    <!-- Spring Boot'un dışarıdan inject ettiği sistem özellikleri:
+         ${PID}                         — Süreç kimliği
+         ${LOG_FILE}                    — logging.file.name değeri
+         ${LOG_PATH}                    — logging.file.path değeri
+         ${LOG_EXCEPTION_CONVERSION_WORD} — logging.exception-conversion-word
+         ${ROLLING_FILE_NAME_PATTERN}   — logging.pattern.rolling-file-name (YENİ: SB 4.x)
+         ${CONSOLE_LOG_STRUCTURED_FORMAT} — logging.structured.format.console (YENİ: SB 4.x)
+    -->
+
+    <!-- ===================================================
+         springProperty: application.yml'dan değer okuma
+         =================================================== -->
+    <springProperty scope="context" name="APP_NAME"
+                    source="spring.application.name" defaultValue="sentinel-ai-gateway"/>
+    <springProperty scope="context" name="LOG_FILE_PATH"
+                    source="logging.file.name" defaultValue="logs/sentinel-ai-gateway.log"/>
+
+    <!-- ===================================================
+         DEV PROFİLİ: Renkli, okunabilir konsol çıktısı
+         =================================================== -->
+    <springProfile name="!prod">
+        <!-- Spring Boot 4.x: console-appender.xml → CONSOLE_LOG_PATTERN kullanır -->
+        <include resource="org/springframework/boot/logging/logback/console-appender.xml"/>
+
+        <!-- Uygulama paketleri -->
+        <logger name="com.gateway.ai.sentinel" level="DEBUG" additivity="false">
+            <appender-ref ref="CONSOLE"/>
+        </logger>
+
+        <!-- Spring Security — prodda INFO, devde DEBUG -->
+        <logger name="org.springframework.security" level="INFO" additivity="false">
+            <appender-ref ref="CONSOLE"/>
+        </logger>
+
+        <!-- Kafka mesaj trafiğini bastır -->
+        <logger name="org.springframework.kafka" level="WARN" additivity="false">
+            <appender-ref ref="CONSOLE"/>
+        </logger>
+
+        <!-- Spring AI -->
+        <logger name="org.springframework.ai" level="INFO" additivity="false">
+            <appender-ref ref="CONSOLE"/>
+        </logger>
+
+        <root level="INFO">
+            <appender-ref ref="CONSOLE"/>
+        </root>
+    </springProfile>
+
+    <!-- ===================================================
+         PROD PROFİLİ: JSON Structured Logging (SB 4.x YENİ)
+         Hem konsola hem dosyaya yapılandırılmış JSON yazar.
+         Loki, ELK, Datadog gibi log aggregator sistemleriyle
+         doğrudan uyumludur.
+         =================================================== -->
+    <springProfile name="prod">
+
+        <!-- YENİ Spring Boot 4.x: JSON structured konsol -->
+        <include resource="org/springframework/boot/logging/logback/structured-console-appender.xml"/>
+
+        <!-- Dosyaya yazma: LOG_FILE sistem özelliğinden alınır -->
+        <property name="LOG_FILE" value="${LOG_FILE_PATH}"/>
+        <!-- YENİ Spring Boot 4.x: JSON structured dosya appender -->
+        <include resource="org/springframework/boot/logging/logback/structured-file-appender.xml"/>
+
+        <!-- Uygulama paketleri -->
+        <logger name="com.gateway.ai.sentinel" level="INFO" additivity="false">
+            <appender-ref ref="STRUCTURED_CONSOLE"/>
+            <appender-ref ref="STRUCTURED_FILE"/>
+        </logger>
+
+        <logger name="org.springframework.security" level="WARN" additivity="false">
+            <appender-ref ref="STRUCTURED_CONSOLE"/>
+            <appender-ref ref="STRUCTURED_FILE"/>
+        </logger>
+
+        <logger name="org.springframework.kafka" level="WARN" additivity="false">
+            <appender-ref ref="STRUCTURED_CONSOLE"/>
+            <appender-ref ref="STRUCTURED_FILE"/>
+        </logger>
+
+        <logger name="org.springframework.ai" level="WARN" additivity="false">
+            <appender-ref ref="STRUCTURED_CONSOLE"/>
+            <appender-ref ref="STRUCTURED_FILE"/>
+        </logger>
+
+        <root level="WARN">
+            <appender-ref ref="STRUCTURED_CONSOLE"/>
+            <appender-ref ref="STRUCTURED_FILE"/>
+        </root>
+    </springProfile>
+
+</configuration>

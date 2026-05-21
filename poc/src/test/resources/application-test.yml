@@ -1,0 +1,22 @@
+spring:
+  ai:
+    ollama:
+      chat:
+        options:
+          model: llama3
+
+  # Test için hızlı başlangıç
+  kafka:
+    consumer:
+      auto-offset-reset: earliest
+
+sentinel:
+  rate-limit:
+    max-requests: 100  # Test sırasında rate limit sorununu önle
+    window-seconds: 60
+
+logging:
+  level:
+    com.gateway.ai.sentinel: DEBUG
+    org.springframework.security: DEBUG
+    org.testcontainers: INFO

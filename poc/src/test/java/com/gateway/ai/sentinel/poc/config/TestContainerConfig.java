@@ -1,0 +1,45 @@
+package com.gateway.ai.sentinel.poc.config;
+
+import org.springframework.boot.test.context.TestConfiguration;
+import org.springframework.boot.testcontainers.service.connection.ServiceConnection;
+import org.springframework.context.annotation.Bean;
+import org.testcontainers.containers.GenericContainer;
+import org.testcontainers.kafka.KafkaContainer;
+import org.testcontainers.utility.DockerImageName;
+
+/**
+ * Entegrasyon testleri için Testcontainers yapılandırması.
+ *
+ * <p>{@link ServiceConnection} sayesinde Spring Boot otomatik olarak
+ * container bağlantı bilgilerini (host, port) uygulama properties'e enjekte eder.
+ *
+ * <p>Kullanım:
+ * <pre>
+ * {@code @SpringBootTest}
+ * {@code @Import(TestContainerConfig.class)}
+ * class MyIntegrationTest { ... }
+ * </pre>
+ */
+@TestConfiguration(proxyBeanMethods = false)
+public class TestContainerConfig {
+
+    /**
+     * Apache Kafka container (KRaft modu).
+     * {@link ServiceConnection} ile spring.kafka.bootstrap-servers otomatik set edilir.
+     */
+    @Bean
+    @ServiceConnection
+    KafkaContainer kafkaContainer() {
+        return new KafkaContainer(DockerImageName.parse("apache/kafka:latest"));
+    }
+
+    /**
+     * Redis container.
+     * {@link ServiceConnection} ile spring.data.redis.host ve port otomatik set edilir.
+     */
+    @Bean
+    @ServiceConnection(name = "redis")
+    GenericContainer<?> redisContainer() {
+        return new GenericContainer<>(DockerImageName.parse("redis:latest")).withExposedPorts(6379);
+    }
+}

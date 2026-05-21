@@ -1,0 +1,158 @@
+openapi: 3.0.3
+info:
+  title: Sentinel AI Gateway API Documentation
+  description: |
+    Sentinel AI Gateway projesine ait REST API dokümantasyonudur. 
+    Bu servis; JWT doğrulama, Redis tabanlı rate limit kontrolü, Spring AI ile risk analizi 
+    ve Kafka entegrasyonu sunar.
+  version: 1.0.0
+servers:
+  - url: http://localhost:8080
+    description: Yerel Geliştirme Sunucusu
+
+security:
+  - BearerAuth: []
+
+paths:
+  /api/v1/sentinel/analyze:
+    post:
+      summary: Payload üzerinde AI destekli risk analizi gerçekleştirir
+      description: |
+        Gelen işlem veya log detaylarını AI modelleriyle analiz ederek bir risk skoru ve kategori atar.
+        Bu endpoint'i çağırmak için kullanıcının **ROLE_USER** veya **ROLE_ADMIN** yetkilerine sahip olması gerekir.
+        İşlem asenkron olarak Kafka audit kuyruğuna kaydedilir.
+      operationId: analyzePayload
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/RiskAssessmentRequest'
+      responses:
+        '200':
+          description: Analiz başarıyla tamamlandı.
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/RiskAssessmentResponse'
+        '400':
+          description: Geçersiz istek gövdesi. Payload boş veya boyut limitleri dışında.
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ErrorResponse'
+        '401':
+          description: Yetkisiz erişim. Geçersiz veya eksik JWT Bearer Token.
+        '403':
+          description: Yetki yetersizliği. Gerekli rollere sahip olunmadığında fırlatılır.
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ErrorResponse'
+        '429':
+          description: Hız sınırı aşıldı (Rate limit exceeded).
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ErrorResponse'
+        '500':
+          description: Sunucu içi beklenmeyen hata veya yapay zeka servisine erişim problemi.
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ErrorResponse'
+
+  /api/v1/sentinel/admin/health:
+    get:
+      summary: Yönetici sağlık kontrolü endpoint'i
+      description: |
+        Gateway ve bağlı servislerin sağlık durumunu sorgular.
+        Sadece **ROLE_ADMIN** yetkisine sahip kullanıcılar erişebilir.
+      operationId: getAdminHealth
+      responses:
+        '200':
+          description: Sistem ayakta ve çalışır durumda.
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  status:
+                    type: string
+                    example: UP
+                  service:
+                    type: string
+                    example: sentinel-ai-gateway
+                  version:
+                    type: string
+                    example: 1.0.0
+        '401':
+          description: Yetkisiz erişim. Geçersiz veya eksik JWT Bearer Token.
+        '403':
+          description: Yetki yetersizliği. Admin rolü yoksa fırlatılır.
+
+components:
+  securitySchemes:
+    BearerAuth:
+      type: http
+      scheme: bearer
+      bearerFormat: JWT
+      description: Keycloak veya uyumlu OAuth2 sağlayıcısı tarafından üretilen JWT Access Token.
+
+  schemas:
+    RiskAssessmentRequest:
+      type: object
+      required:
+        - payload
+      properties:
+        payload:
+          type: string
+          minLength: 10
+          maxLength: 5000
+          description: Analiz edilecek ham metin içeriği. Boş olamaz, 10 ile 5000 karakter arası olmalıdır.
+          example: "Transaction of 50000 USD from blacklisted IP 10.0.0.1"
+
+    RiskAssessmentResponse:
+      type: object
+      properties:
+        requestId:
+          type: string
+          format: uuid
+          description: İstek için oluşturulan benzersiz UUID
+          example: "123e4567-e89b-12d3-a456-426614174000"
+        riskScore:
+          type: integer
+          minimum: 1
+          maximum: 10
+          description: 1 (Güvenli) ile 10 (Dolandırıcılık/Tehlike) arasında atanan risk skoru
+          example: 7
+        category:
+          type: string
+          description: Belirlenen risk kategorisi (Örn; BENIGN, SUSPICIOUS, FRAUD)
+          example: "FRAUD"
+        reason:
+          type: string
+          description: AI modelinin risk kategorisini belirleme gerekçesi
+          example: "Suspicious transaction from blacklisted IP address"
+        timestamp:
+          type: string
+          format: date-time
+          description: Analizin tamamlanma zaman damgası
+          example: "2026-05-21T12:00:00Z"
+
+    ErrorResponse:
+      type: object
+      properties:
+        status:
+          type: integer
+          description: HTTP durum kodu
+          example: 429
+        message:
+          type: string
+          description: Hatanın detaylı açıklaması
+          example: "Rate limit exceeded"
+        timestamp:
+          type: string
+          format: date-time
+          description: Hatanın oluştuğu zaman damgası
+          example: "2026-05-21T12:00:05Z"

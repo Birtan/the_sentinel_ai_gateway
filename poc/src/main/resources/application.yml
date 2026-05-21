@@ -1,0 +1,93 @@
+server:
+  port: 8081
+
+spring:
+  application:
+    name: sentinel-ai-gateway
+
+  # ===== SECURITY: OAuth2 Resource Server =====
+  security:
+    oauth2:
+      resourceserver:
+        jwt:
+          issuer-uri: ${SPRING_SECURITY_OAUTH2_RESOURCESERVER_JWT_ISSUER_URI:http://localhost:8080/realms/sentinel-realm}
+
+  # ===== KAFKA =====
+  kafka:
+    bootstrap-servers: ${SPRING_KAFKA_BOOTSTRAP_SERVERS:localhost:9092}
+    producer:
+      key-serializer: org.apache.kafka.common.serialization.StringSerializer
+      value-serializer: org.springframework.kafka.support.serializer.JsonSerializer
+      properties:
+        enable.idempotence: true
+        acks: all
+        retries: 3
+        spring.json.add.type.headers: false
+    consumer:
+      group-id: sentinel-audit-consumer
+      auto-offset-reset: earliest
+      key-deserializer: org.apache.kafka.common.serialization.StringDeserializer
+      value-deserializer: org.springframework.kafka.support.serializer.ErrorHandlingDeserializer
+      properties:
+        spring.deserializer.value.delegate.class: org.springframework.kafka.support.serializer.JsonDeserializer
+        spring.json.trusted.packages: "com.gateway.ai.sentinel.poc.audit.event"
+        spring.json.value.default.type: com.gateway.ai.sentinel.poc.audit.event.AuditEvent
+
+  # ===== REDIS =====
+  data:
+    redis:
+      host: ${SPRING_DATA_REDIS_HOST:localhost}
+      port: 6379
+
+  # ===== SPRING AI =====
+  ai:
+    ollama:
+      base-url: ${SPRING_AI_OLLAMA_BASE_URL:http://localhost:11434}
+      chat:
+        options:
+          model: llama3
+          temperature: 0.1
+          num-predict: 512
+
+# ===== SENTINEL BUSINESS CONFIG =====
+sentinel:
+  rate-limit:
+    max-requests: 10
+    window-seconds: 60
+
+# ===== ACTUATOR =====
+management:
+  endpoints:
+    web:
+      exposure:
+        include: health, info, metrics, prometheus
+  endpoint:
+    health:
+      show-details: when-authorized
+
+# ===== LOGGING (Spring Boot 4.x) =====
+# logback-spring.xml logger seviyeleri yönetir.
+# Burada sadece temel overrides tanımlanır.
+logging:
+  # Logback konfigürasyonunu Spring Boot extensions ile kullan
+  config: classpath:logback-spring.xml
+
+  # Dosyaya yazma (logback-spring.xml → LOG_FILE sistem özelliğine inject edilir)
+  file:
+    name: logs/sentinel-ai-gateway.log
+
+  # Spring Boot 4.x YENİ: Yapılandırılmış JSON logging formatı
+  # Prod ortamında aktif etmek için: logging.structured.format.console=ecs
+  # Desteklenen formatlar: ecs (Elastic Common Schema), logstash, gelf
+  # structured:
+  #   format:
+  #     console: ecs
+  #     file: ecs
+
+  # Temel log seviyeleri (logback-spring.xml profile'larını override eder)
+  level:
+    root: INFO
+    com.gateway.ai.sentinel: DEBUG
+    org.springframework.security: INFO
+    org.springframework.kafka: WARN
+    org.springframework.ai: INFO
