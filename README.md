@@ -47,7 +47,7 @@ sequenceDiagram
     KC-->>GW: Token Doğrulama Sonucu
     alt Token Geçersizse
         GW-->>Client: 401 Unauthorized
-    else Yetki Yetersizse (Örn; ROLE_AUDITOR)
+    else Yetki Yetersizse (Örn: ROLE_AUDITOR)
         GW-->>Client: 403 Forbidden
     end
 
